@@ -3,12 +3,15 @@ import pickle
 import config
 import time
 import torch
+import jieba_fast as jieba
 from datetime import timedelta
 from utils.zh_wiki import zh2Hans
+from utils.langconv import *
 from model.ner_bert_crf import Ner_Bert_Crf
 
 fileConfig = config.FileConfig()
 nerConfig = config.NERConfig()
+fasttextConfig = config.FastTextConfig()
 
 
 class ProgressBar(object):
@@ -82,7 +85,7 @@ def replace_useless_item(text_list, vocab):
             texts[i] = item
         # if can't find change to PAD
         if vocab.get(item) is None or item in use_less_items:
-            texts[i] = nerConfig.PAD_flag
+            texts[i] = nerConfig.UNK_flag
     return texts
 
 
@@ -99,3 +102,64 @@ def conv_list_to_int(pos_list):
     for pos in pos_list:
         res_list.append(int(pos))
     return res_list
+
+
+def get_kb_type(types):
+    type_str = ''
+    len_types = len(types)
+    for i, jtype in enumerate(types):
+        if i < len_types - 1:
+            type_str += jtype + '-'
+        else:
+            type_str += jtype
+    return nerConfig.ner_type_map.get(type_str)
+
+
+def cht_to_chs(line):
+    """
+    转换繁体到简体
+    :param line:
+    :return:
+    """
+    line = Converter('zh-hans').convert(line)
+    line.encode('utf-8')
+    return line
+
+
+def dict_add(dic, dic_str):
+    if dic.get(dic_str) is not None:
+        dic[dic_str] += 1
+    else:
+        dic[dic_str] = 1
+    return dic
+
+
+def get_entity_mention_pair_text(kb_text, neighbor_text, stopwords, label=None):
+    out_str = ''
+    neighbor_text_cut = jieba.lcut(neighbor_text)
+    for text in neighbor_text_cut:
+        if text not in stopwords:
+            out_str += cht_to_chs(text) + ' '
+    kb_text_cut = jieba.lcut(kb_text)
+    for text in kb_text_cut:
+        if text not in stopwords:
+            out_str += cht_to_chs(text) + ' '
+    if label is not None:
+        out_str = label + ' ' + out_str[0:len(out_str) - 1] + '\n'
+    else:
+        out_str = out_str[0:len(out_str) - 1] + '\n'
+    return out_str
+
+
+def get_neighbor_sentence(sentence, mention_text):
+    text_len = len(mention_text)
+    neighbor_sentence = ''
+    for i in range(len(sentence) - text_len + 1):
+        if sentence[i:i + text_len] == mention_text:
+            if i > 5 and i + text_len < len(sentence) - 4:
+                neighbor_sentence = sentence[i - 5:i + text_len + 4]
+            elif i < 5:
+                neighbor_sentence = sentence[:10]
+            elif i + text_len > len(sentence) - 4:
+                neighbor_sentence = sentence[-10:]
+    return neighbor_sentence

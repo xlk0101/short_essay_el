@@ -6,7 +6,9 @@ class ComConfig(object):
         self.random_seed = 515
         self.train_ratio = 0.9
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.punctuation = r"""!"#$%&'()*+,./:;<=>?@[\]^`{|}~《》。，！？‘’“”"""
+        self.punctuation = r"""!"#$%&'()*+,./:;<=>?@[\]^`{|}~《》。·，！？‘’“”"""
+        self.re_find_brackets = r'[{}](.*?)[{}]'
+        self.brackets_list = ['<>', '()', '《》', '\'\'', '\"\"', '{}', '[]']
 
 
 class FileConfig(object):
@@ -28,10 +30,13 @@ class FileConfig(object):
         self.dir_fasttext = self.dir_data + 'fasttext/'
         self.dir_stopword = self.dir_data + 'stopword/'
         self.dir_result = self.dir_data + 'result/'
+        self.dir_tmp = self.dir_data + 'tmp/'
 
         # file params
         self.file_kb_data = 'kb_data'
         self.file_train_data = 'train.json'
+        self.file_extend_train_data = 'extend_train.json'
+        self.file_train_data_split = 'train_data_{}_split.txt'
         self.file_dev_data = 'develop.json'
         self.file_stopword = 'stopword.txt'
         self.file_jieba_dict = 'jieba_dict.txt'
@@ -56,6 +61,7 @@ class FileConfig(object):
         self.file_bert_vocab = 'vocab.txt'
         self.file_analysis_vocab = 'analysis_vocab.txt'
         self.file_analysis_unfind = 'analysis_unfind.txt'
+        self.file_analysis_train_untind = 'analysis_train_unfind.txt'
         self.file_ner_model = 'ner_model.bin'
         self.file_ner_predict_tag = 'ner_predict_tag.pkl'
         self.file_ner_test_predict_tag = 'ner_test_predict_tag.pkl'
@@ -65,8 +71,12 @@ class FileConfig(object):
         self.file_nel_entity_context_vocab = 'nel_entity_context_vocab.txt'
         self.file_nel_entity_vocab = 'nel_entity_vocab.txt'
         self.file_tfidf_save_data = 'tfidf_save_data.pkl'
-        self.file_fasttext_train_data = 'fasttext_train_data.txt'
+        self.file_fasttext_unsup_train_data = 'fasttext_unsup_train_data.txt'
+        self.file_fasttext_sup_train_data = 'fasttext_sup_train_data.txt'
+        self.file_fasttext_sup_test_data = 'fasttext_sup_test_data.txt'
+        self.file_fasttext_sup_train_split = 'fasttext_sup_train_{}_split.txt'
         self.file_fasttext_model = 'fasttext_{}_model.bin'
+        self.file_fasttext_sup_model = 'fasttext_sup_model.bin'
         self.file_result_fasttext_predict = 'result_fasttext_predict.txt'
         self.file_result_fasttext_test = 'result_fasttext_test.txt'
 
@@ -90,6 +100,207 @@ class NERConfig(object):
         self.ner_task_name = 'ner'
         # self.labels = ["B_KB", "I_KB", "E_KB", "B_NIL", "I_NIL", "E_NIL", "O"]
         self.labels = ["B_KB", "I_KB", "E_KB", "O"]
+        # self.labels = ["E_Human", "E_Event", "E_ScientificOrganization", "E_Movie", "E_Thing", "I_CreativeWork",
+        #                "E_FictionalHuman", "B_CommunicationMedium", "I_CommunicationMedium", "E_CreativeWork",
+        #                "I_Thing", "E_EntertainmentPerson", "B_Movie", "E_Product", "I_Movie", "I_Event", "O",
+        #                "B_Vocabulary", "E_CommunicationMedium", "B_Event", "B_Human", "B_Organization", "I_Place",
+        #                "E_Organization", "B_Thing", "E_Place", "I_Vocabulary", "I_FictionalHuman",
+        #                "I_ScientificOrganization", "E_Vocabulary", "B_Product", "B_EntertainmentPerson",
+        #                "B_ScientificOrganization", "I_Product", "I_Human", "I_EntertainmentPerson", "I_Organization",
+        #                "B_CreativeWork", "B_FictionalHuman", "B_Place"]
+        self.ner_type_map = {
+            'FamilyName-HistoricalPeriod-Vocabulary-Dynasty': 'Vocabulary',
+            'Organization-Product-Brand': 'Organization',
+            'Currency-FictionalThing-Vocabulary': 'Vocabulary',
+            'Building-Place-RealEstate': 'Place',
+            'Tool-Product-Vocabulary': 'Thing',
+            'Organization-Brand-Product': 'Organization',
+            'Product-Material-Vocabulary': 'Product',
+            'Organization-CreativeWork-Place': 'Organization',
+            'CreativeWork-FictionalThing-Organism': 'CreativeWork',
+            'Product-Tool-Vocabulary': 'Thing',
+            'HistoricalPeriod-Vocabulary-Dynasty': 'Thing',
+            'Tool-CreativeWork-Product': 'Thing',
+            'Organization-Brand-Place': 'Organization',
+            'Building-Place-Vocabulary': 'Place',
+            'Product-Place-Vocabulary': 'Product',
+            'CommunicationMedium-CreativeWork-Event': 'CommunicationMedium',
+            'Organization-Vocabulary-HistoricalPeriod': 'Organization',
+            'Food-Organization-Brand': 'Thing',
+            'Material-Vocabulary-ChemicalElement': 'Vocabulary',
+            'Organization-Place-Vocabulary': 'Organization',
+            'CulturalHeritage-CreativeWork-Vocabulary': 'CreativeWork',
+            'Food-Material-Vocabulary': 'Thing',
+            'Game-FictionalThing-Tool': 'CreativeWork',
+            'Currency-Product-Vocabulary': 'Product',
+            'Tool-FamilyName-Vocabulary': 'Thing',
+            'Food-Organism-Vocabulary': 'Thing',
+            'Dynasty-Place-HistoricalPeriod': 'Thing',
+            'Product-CreativeWork-Vocabulary': 'Product',
+            'Building-Organization-Place': 'Place',
+            'AcademicDiscipline-Curriculum-EducationMajor': 'CreativeWork',
+            'AcademicDiscipline-Vocabulary-EducationMajor': 'CreativeWork',
+            'HistoricalPeriod-Place-Dynasty': 'Thing',
+            'Currency-Product-Organization': 'Product',
+            'Building-CulturalHeritage-Place': 'Place',
+            'Organization-CommunicationMedium-CreativeWork': 'Organization',
+            'Currency-Product-CreativeWork': 'Product',
+            'Organism-FictionalThing-CreativeWork': 'CreativeWork',
+            'Organization-Brand-Vocabulary': 'Organization',
+            'CulturalHeritage-Tool-CreativeWork': 'Thing',
+            'CulturalHeritage-CommunicationMedium-CreativeWork': 'CommunicationMedium',
+            'HistoricalPerson-Human': 'Human',
+            'Athlete-Human': 'Human',
+            'CommunicationMedium-CreativeWork': 'CommunicationMedium',
+            'Human-Athlete': 'Human',
+            'Human-HistoricalPerson': 'Human',
+            'ScientificOrganization-CollegeOrUniversity': 'ScientificOrganization',
+            'CollegeOrUniversity-ScientificOrganization': 'ScientificOrganization',
+            'CreativeWork-Vocabulary': 'CreativeWork',
+            'Organization-Place': 'Organization',
+            'Building-Place': 'Place',
+            'CreativeWork-Event': 'CreativeWork',
+            'CommunicationMedium-Curriculum': 'CommunicationMedium',
+            'Event-Vocabulary': 'Vocabulary',
+            'Product-FictionalThing': 'CreativeWork',
+            'Organization-Brand': 'Organization',
+            'FamilyName-Vocabulary': 'Vocabulary',
+            'Place-RealEstate': 'Place',
+            'Organization-CommunicationMedium': 'Organization',
+            'Brand-Product': 'Product',
+            'HistoricalPeriod-Dynasty': 'Thing',
+            'Place-Vocabulary': 'Place',
+            'Person-Organization': 'Human',
+            'Organization-Vocabulary': 'Organization',
+            'CulturalHeritage-CreativeWork': 'CreativeWork',
+            'Product-Vocabulary': 'Product',
+            'EntertainmentPerson-Human': 'Human',
+            'CommunicationMedium-Vocabulary': 'CommunicationMedium',
+            'CommunicationMedium-Brand': 'CommunicationMedium',
+            'Language-Vocabulary': 'Vocabulary',
+            'Organization-Event': 'Organization',
+            'Human-EntertainmentPerson': 'Human',
+            'Material-ChemicalElement': 'Product',
+            'Building-Organization': 'Organization',
+            'Game-Product': 'CreativeWork',
+            'Game-FictionalThing': 'CreativeWork',
+            'CommunicationMedium-Event': 'CommunicationMedium',
+            'MedicalCondition-Vocabulary': 'Vocabulary',
+            'Product-Game': 'CreativeWork',
+            'Tool-Vocabulary': 'Thing',
+            'Product-Tool': 'Thing',
+            'AcademicDiscipline-Vocabulary': 'CreativeWork',
+            'AcademicDiscipline-EducationMajor': 'CreativeWork',
+            'Organism-Vocabulary': 'Vocabulary',
+            'Organization-Game': 'CreativeWork',
+            'Product-CreativeWork': 'CreativeWork',
+            'Food-Vocabulary': 'Thing',
+            'MedicalCondition-Event': 'Event',
+            'Organization-Person': 'Human',
+            'CulturalHeritage-Event': 'Event',
+            'FictionalThing-CreativeWork': 'CreativeWork',
+            'Currency-FictionalThing': 'CreativeWork',
+            'Organization-CreativeWork': 'CreativeWork',
+            'Person-Product': 'Product',
+            'AcademicDiscipline-Curriculum': 'CreativeWork',
+            'Food-Brand': 'Thing',
+            'Food-Material': 'Thing',
+            'Vocabulary-Theorem': 'Vocabulary',
+            'Product-CommunicationMedium': 'CommunicationMedium',
+            'Material-Vocabulary': 'Vocabulary',
+            'Material-CreativeWork': 'CreativeWork',
+            'FictionalThing-Vocabulary': 'CreativeWork',
+            'Product-Brand': 'Product',
+            'Currency-Product': 'Product',
+            'Brand-Material': 'Vocabulary',
+            'Food-Organism': 'Thing',
+            'CreativeWork-Organism': 'CreativeWork',
+            'Organization-Organism': 'Organization',
+            'Vocabulary-HistoricalPeriod': 'Thing',
+            'Tool-CreativeWork': 'Thing',
+            'AstronomicalObject-CreativeWork': 'CreativeWork',
+            'CommunicationMedium-Place': 'CommunicationMedium',
+            'Product-Material': 'Product',
+            'AcademicDiscipline-CommunicationMedium': 'CreativeWork',
+            'AstronomicalObject-Vocabulary': 'Vocabulary',
+            'Tool-Product': 'Thing',
+            'Tool-FictionalThing': 'Thing',
+            'Brand-Vocabulary': 'Vocabulary',
+            'Game-Event': 'CreativeWork',
+            'Organization-Product': 'Organization',
+            'Game-Vocabulary': 'CreativeWork',
+            'Place-CreativeWork': 'CreativeWork',
+            'Game-CreativeWork': 'CreativeWork',
+            'Curriculum-Vocabulary': 'Vocabulary',
+            'Vocabulary-Language': 'Vocabulary',
+            'FictionalThing-Place': 'Place',
+            'Person-Vocabulary': 'Human',
+            'Product-Event': 'Product',
+            'Tool-Event': 'Thing',
+            'CulturalHeritage-Vocabulary': 'Vocabulary',
+            'CreativeWork-Place': 'CreativeWork',
+            'Game-HistoricalPeriod': 'CreativeWork',
+            'CulturalHeritage-Place': 'Place',
+            'MedicalCondition-Organism': 'Thing',
+            'Vocabulary-EducationMajor': 'Vocabulary',
+            'Organization-FictionalThing': 'Organization',
+            'Person-CreativeWork': 'Human',
+            'FictionalThing-Organism': 'Thing',
+            'Brand-CreativeWork': 'CreativeWork',
+            'Currency-Vocabulary': 'Vocabulary',
+            'Organization-Tool': 'Thing',
+            'CommunicationMedium-EducationMajor': 'CommunicationMedium',
+            'Currency-CreativeWork': 'CreativeWork',
+            'CreativeWork-HistoricalPeriod': 'Thing',
+            'Person-CommunicationMedium': 'Human',
+            'Thing': 'Thing',
+            'CreativeWork': 'CreativeWork',
+            'Plant': 'Thing',
+            'Human': 'Human',
+            'Place': 'Place',
+            'Movie': 'Movie',
+            'EntertainmentPerson': 'EntertainmentPerson',
+            'FictionalHuman': 'FictionalHuman',
+            'CommunicationMedium': 'CommunicationMedium',
+            'Vocabulary': 'Vocabulary',
+            'Game': 'CreativeWork',
+            'TVShow': 'CreativeWork',
+            'TVPlay': 'CreativeWork',
+            'Tool': 'Thing',
+            'Material': 'Thing',
+            'Event': 'Event',
+            'Organization': 'Organization',
+            'Language': 'Vocabulary',
+            'Product': 'Product',
+            'Organism': 'Thing',
+            'Animal': 'Thing',
+            'Brand': 'Thing',
+            'ScientificOrganization': 'ScientificOrganization',
+            'Country': 'Place',
+            'MedicalCondition': 'Event',
+            'Person': 'Human',
+            'Food': 'Thing',
+            'FictionalThing': 'CreativeWork',
+            'CulturalHeritage': 'CreativeWork',
+            'FamilyName': 'Vocabulary',
+            'ZodiacSign': 'CreativeWork',
+            'Nation': 'Place',
+            'AstronomicalObject': 'Thing',
+            'Symbol': 'CreativeWork',
+            'Currency': 'Product',
+            'AcademicDiscipline': 'CreativeWork',
+            'CollegeOrUniversity': 'ScientificOrganization',
+            'Curriculum': 'CreativeWork',
+            'EducationMajor': 'Thing',
+            'AwardEventSeries': 'CreativeWork',
+            'InternationalOrganization': 'Organization',
+            'HistoricalPeriod': 'Thing',
+            'Formula': 'CreativeWork',
+            'MedicalDepartmentType': 'Organization',
+            'Theorem': 'Vocabulary',
+            'Athlete': 'Human',
+            'HistoricalPerson': 'Human'
+        }
         # NER model
         self.max_seq_length = 51
         self.train_batch_size = 16
@@ -124,5 +335,8 @@ class FastTextConfig(object):
     def __init__(self):
         self.model_skipgram = 'skipgram'
         self.model_cbow = 'cbow'
-        self.max_alias_num = 20
-        self.min_entity_similarity_threshold = 0.5
+        self.label_true = '__label__true'
+        self.label_false = '__label__false'
+        self.max_alias_num = 30
+        self.min_entity_similarity_threshold = 0.4
+        self.choose_entity_similarity_threshold = 0.7

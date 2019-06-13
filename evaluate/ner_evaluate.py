@@ -68,8 +68,8 @@ def fit_eval(model, training_iter, eval_iter, num_epoch, pbar, num_train_steps, 
         model.train()
         for step, batch in enumerate(training_iter):
             batch = tuple(t.to(comConfig.device) for t in batch)
-            input_ids, input_mask, segment_ids, label_ids, output_mask = batch
-            bert_encode = model(input_ids, segment_ids, input_mask)
+            input_ids, input_mask, segment_ids, label_ids, output_mask, input_lengths = batch
+            bert_encode = model(input_ids, segment_ids, input_mask, input_length=input_lengths)
             train_loss = model.loss_fn(bert_encode=bert_encode, tags=label_ids, output_mask=output_mask)
             if nerConfig.gradient_accumulation_steps > 1:
                 train_loss = train_loss / nerConfig.gradient_accumulation_steps
@@ -105,8 +105,9 @@ def fit_eval(model, training_iter, eval_iter, num_epoch, pbar, num_train_steps, 
         with torch.no_grad():
             for step, batch in enumerate(eval_iter):
                 batch = tuple(t.to(comConfig.device) for t in batch)
-                input_ids, input_mask, segment_ids, label_ids, output_mask = batch
-                bert_encode = model(input_ids, segment_ids, input_mask).to(comConfig.device)
+                input_ids, input_mask, segment_ids, label_ids, output_mask, eval_input_length = batch
+                bert_encode = model(input_ids, segment_ids, input_mask, input_length=eval_input_length).to(
+                    comConfig.device)
                 eval_los = model.loss_fn(bert_encode=bert_encode, tags=label_ids, output_mask=output_mask)
                 eval_loss = eval_los + eval_loss
                 count += 1
@@ -141,7 +142,7 @@ def predict(model, predict_iter):
     with torch.no_grad():
         for step, batch in enumerate(predict_iter):
             batch = tuple(t.to(comConfig.device) for t in batch)
-            input_ids, input_mask, segment_ids, label_ids, output_mask = batch
+            input_ids, input_mask, segment_ids, label_ids, output_mask, input_length = batch
             bert_encode = model(input_ids, segment_ids, input_mask).to(comConfig.device)
             predicts = model.predict(bert_encode, output_mask, is_squeeze=False)
             y_predicts.append(predicts)

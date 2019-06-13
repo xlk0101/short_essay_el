@@ -1,4 +1,5 @@
 import torch.nn as nn
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import numpy as np
 from sklearn.metrics import f1_score, classification_report
 from model.ner_crf import CRF
@@ -11,15 +12,26 @@ class Ner_Bert_Crf(BertPreTrainedModel):
         self.bert = BertModel(model_config)
         # for p in self.bert.parameters():
         #     p.requires_grad = False
+        # bilstm
+        # self.bilstm = nn.LSTM(model_config.hidden_size, model_config.hidden_size, batch_first=True,
+        #                       bidirectional=True)
         self.dropout = nn.Dropout(model_config.hidden_dropout_prob)
         self.classifier = nn.Linear(model_config.hidden_size, num_tag)
         self.apply(self.init_bert_weights)
         self.crf = CRF(num_tag)
 
-    def forward(self, input_ids, token_type_ids, attention_mask, label_id=None, output_all_encoded_layers=False):
+    def forward(self, input_ids, token_type_ids, attention_mask, label_id=None, output_all_encoded_layers=False,
+                input_length=None):
         bert_encode, _ = self.bert(input_ids, token_type_ids, attention_mask,
-output_all_encoded_layers=output_all_encoded_layers)
+                                   output_all_encoded_layers=output_all_encoded_layers)
+        # bilstm
+        # packed = pack_padded_sequence(bert_encode, input_length, batch_first=True, enforce_sorted=False)
+        # rnn_out, _ = self.bilstm(packed)
+        # # rnn_out:[B, L, hidden_size*2]
+        # rnn_out, _ = pad_packed_sequence(rnn_out, batch_first=True)
+        # bilstm
         output = self.classifier(bert_encode)
+        # output = self.classifier(rnn_out)
         return output
 
     def loss_fn(self, bert_encode, output_mask, tags):

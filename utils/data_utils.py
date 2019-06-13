@@ -3,6 +3,7 @@ import torch
 import random
 import os
 import string
+import re
 import ast
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 from torchvision import transforms
@@ -60,8 +61,10 @@ def create_ner_batch_iter(mode):
     all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
     all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.long)
     all_output_mask = torch.tensor([f.output_mask for f in features], dtype=torch.long)
+    all_input_length = torch.tensor([f.input_length for f in features], dtype=torch.long)
     # 数据集
-    data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_output_mask)
+    data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_output_mask,
+                         all_input_length)
     if mode == nerConfig.mode_train:
         sampler = RandomSampler(data)
     elif mode == nerConfig.mode_dev:
@@ -299,7 +302,15 @@ def get_text(data, subject):
     return max_text
 
 
-def get_kb_text_list(kb_str):
+def get_all_text(subject, datas):
+    result_str = com_utils.cht_to_chs(subject) + ' '
+    for data in datas:
+        result_str += data['predicate'] + ' '
+        result_str += data['object'] + ' '
+    return result_str[0:len(result_str) - 1]
+
+
+def get_kb_text_list(kb_str, is_all=False):
     result_texts = []
     subject_list = set()
     original_subject = kb_str['subject'].strip()
@@ -307,7 +318,10 @@ def get_kb_text_list(kb_str):
     alias = kb_str['alias']
     for alia in alias:
         subject_list.add(alia.strip())
-    text = get_text(kb_str['data'], kb_str['subject'])
+    if is_all:
+        text = get_all_text(kb_str['subject'], kb_str['data'])
+    else:
+        text = get_text(kb_str['data'], kb_str['subject'])
     # find original_subject
     if text.find(original_subject) == -1:
         for subject in subject_list:
@@ -337,3 +351,42 @@ def strip_punctuation(text):
         result = result.strip(c)
         result = result.replace(c, '_')
     return result
+
+
+def is_mention_already_in_list(mention_list, mention):
+    result = False
+    for item in mention_list:
+        count = 0
+        for key, value in item.items():
+            if mention[key] == value:
+                count += 1
+                if count == len(mention.items()):
+                    result = True
+                    break
+    return result
+
+
+def find_str_in_brackets(text):
+    result_list = []
+    for brackets in comConfig.brackets_list:
+        result = re.findall(comConfig.re_find_brackets.format(brackets[0], brackets[1]), text)
+        for find_str in result:
+            result_list.append(find_str.strip(brackets[0]).strip(brackets[1]))
+    return result_list
+
+
+def get_mention_inner_brackets(text, tag_list):
+    result_list = find_str_in_brackets(text)
+    mentions = []
+    for mention_str in result_list:
+        offset = text.find(mention_str)
+        if len(tag_list[offset].split('_')) == 2:
+            mention_type = tag_list[offset].split('_')[1]
+        else:
+            mention_type = 'KB'
+        mentions.append({'mention': mention_str, 'offset': str(offset), 'type': mention_type})
+    return mentions
+
+
+def get_extend_ner_train_list(kb_dict, mention_dict):
+    pass

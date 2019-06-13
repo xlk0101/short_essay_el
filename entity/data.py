@@ -95,6 +95,9 @@ class NERProcessor(DataProcessor):
             # ----------------处理source--------------
             ## 句子首尾加入标示符
             tokens = [nerConfig.CLS_flag] + tokens_a + [nerConfig.SEP_flag]
+            # 保存input_length
+            # input_len = len(tokens)
+            input_len = max_seq_length
             segment_ids = [0] * len(tokens)
             ## 词转换成数字
             input_ids = tokenizer.convert_tokens_to_ids(tokens)
@@ -135,10 +138,11 @@ class NERProcessor(DataProcessor):
                 print("input_mask: %s" % " ".join([str(x) for x in input_mask]))
                 print("label: %s " % " ".join([str(x) for x in label_id]))
                 print("output_mask: %s " % " ".join([str(x) for x in output_mask]))
+                print("input len:{}".format(input_len))
             # ----------------------------------------------------
 
             feature = InputFeature(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids,
-                                   label_id=label_id, output_mask=output_mask)
+                                   label_id=label_id, output_mask=output_mask, input_length=input_len)
             features.append(feature)
         return features
 
