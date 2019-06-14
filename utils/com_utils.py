@@ -156,10 +156,10 @@ def get_neighbor_sentence(sentence, mention_text):
     neighbor_sentence = ''
     for i in range(len(sentence) - text_len + 1):
         if sentence[i:i + text_len] == mention_text:
-            if i > 5 and i + text_len < len(sentence) - 4:
-                neighbor_sentence = sentence[i - 5:i + text_len + 4]
-            elif i < 5:
-                neighbor_sentence = sentence[:10]
-            elif i + text_len > len(sentence) - 4:
-                neighbor_sentence = sentence[-10:]
+            if i > 10 and i + text_len < len(sentence) - 9:
+                neighbor_sentence = sentence[i - 10:i + text_len + 9]
+            elif i < 10:
+                neighbor_sentence = sentence[:20]
+            elif i + text_len > len(sentence) - 9:
+                neighbor_sentence = sentence[-20:]
     return neighbor_sentence

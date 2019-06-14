@@ -5,10 +5,14 @@ class ComConfig(object):
     def __init__(self):
         self.random_seed = 515
         self.train_ratio = 0.9
+        self.max_extend_mentions_num = 30
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.punctuation = r"""!"#$%&'()*+,./:;<=>?@[\]^`{|}~《》。·，！？‘’“”"""
         self.re_find_brackets = r'[{}](.*?)[{}]'
         self.brackets_list = ['<>', '()', '《》', '\'\'', '\"\"', '{}', '[]']
+        self.mode_ner_normal = 'normal'
+        self.mode_ner_extend = 'extend'
+        self.create_ner_mode = self.mode_ner_extend
 
 
 class FileConfig(object):
@@ -47,8 +51,11 @@ class FileConfig(object):
         self.file_kb_pandas_alias_split = 'pandas_kb_alias_{}_split.csv'
         self.file_vocab_data = 'vocab_data.txt'
         self.file_ner_data = 'ner_data.pkl'
+        self.file_extend_ner_data = 'extend_ner_data.pkl'
         self.file_ner_train_data = 'ner_train_data.pkl'
+        self.file_ner_extend_train_data = 'ner_extend_train_data.pkl'
         self.file_ner_dev_data = 'ner_dev_data.pkl'
+        self.file_ner_extend_dev_data = 'ner_extend_dev_data.pkl'
         self.file_ner_predict_data = 'ner_predict_data.pkl'
         self.file_ner_test_mention_data = 'ner_test_mention_data.pkl'
         self.file_ner_dev_mention_data = 'ner_dev_mention_data.pkl'
@@ -94,7 +101,9 @@ class NERConfig(object):
         self.SEP_flag = '[SEP]'
         self.UNK_flag = '[UNK]'
         self.mode_train = 'train'
+        self.mode_extend_train = 'extend_train'
         self.mode_dev = 'dev'
+        self.mode_extend_dev = 'extend_dev'
         self.mode_predict = 'predict'
         self.mode_test = 'test'
         self.ner_task_name = 'ner'
@@ -303,8 +312,8 @@ class NERConfig(object):
         }
         # NER model
         self.max_seq_length = 51
-        self.train_batch_size = 16
-        self.eval_batch_size = 16
+        self.train_batch_size = 48
+        self.eval_batch_size = 48
         self.learning_rate = 5e-5
         self.num_train_epochs = 3
         self.warmup_proportion = 0.1

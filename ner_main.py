@@ -12,8 +12,8 @@ nerConfig = config.NERConfig()
 
 
 def train():
-    train_iter, num_train_steps = data_utils.create_ner_batch_iter(nerConfig.mode_train)
-    eval_iter = data_utils.create_ner_batch_iter(nerConfig.mode_dev)
+    train_iter, num_train_steps = data_utils.create_ner_batch_iter(nerConfig.mode_extend_train)
+    eval_iter = data_utils.create_ner_batch_iter(nerConfig.mode_extend_dev)
     epoch_size = num_train_steps * nerConfig.train_batch_size * nerConfig.gradient_accumulation_steps / nerConfig.num_train_epochs
     pbar = ProgressBar(epoch_size=epoch_size, batch_size=nerConfig.train_batch_size)
     model = Ner_Bert_Crf.from_pretrained(fileConfig.dir_bert_pretrain_model, num_tag=len(nerConfig.labels))
@@ -26,7 +26,7 @@ def train():
 
 
 def predict():
-    dev_iter, data_list = data_utils.create_ner_batch_iter(nerConfig.mode_test)
+    dev_iter, data_list = data_utils.create_ner_batch_iter(nerConfig.mode_predict)
     model = com_utils.load_model(fileConfig.dir_ner_checkpoint, num_tag=len(nerConfig.labels))
     predict_list = ner_evaluate.predict(model, dev_iter)
     data_utils.deal_ner_predict_data(predict_list, data_list,fileConfig.dir_ner + fileConfig.file_ner_predict_tag)

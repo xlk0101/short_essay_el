@@ -38,6 +38,15 @@ def create_ner_batch_iter(mode):
             examples) / nerConfig.train_batch_size / nerConfig.gradient_accumulation_steps * nerConfig.num_train_epochs)
         batch_size = nerConfig.train_batch_size
         print("{} Num steps = {}".format(mode, num_train_steps))
+    elif mode == nerConfig.mode_extend_train:
+        examples = processor.get_extend_train_examples()
+        num_train_steps = int(len(
+            examples) / nerConfig.train_batch_size / nerConfig.gradient_accumulation_steps * nerConfig.num_train_epochs)
+        batch_size = nerConfig.train_batch_size
+        print("{} Num steps = {}".format(mode, num_train_steps))
+    elif mode == nerConfig.mode_extend_dev:
+        examples = processor.get_extend_dev_examples()
+        batch_size = nerConfig.eval_batch_size
     elif mode == nerConfig.mode_dev:
         examples = processor.get_dev_examples()
         batch_size = nerConfig.eval_batch_size
@@ -67,7 +76,11 @@ def create_ner_batch_iter(mode):
                          all_input_length)
     if mode == nerConfig.mode_train:
         sampler = RandomSampler(data)
+    elif mode == nerConfig.mode_extend_train:
+        sampler = RandomSampler(data)
     elif mode == nerConfig.mode_dev:
+        sampler = SequentialSampler(data)
+    elif mode == nerConfig.mode_extend_dev:
         sampler = SequentialSampler(data)
     elif mode == nerConfig.mode_predict:
         sampler = SequentialSampler(data)
@@ -79,7 +92,11 @@ def create_ner_batch_iter(mode):
     iterator = DataLoader(data, num_workers=4, sampler=sampler, batch_size=batch_size)
     if mode == nerConfig.mode_train:
         return iterator, num_train_steps
+    elif mode == nerConfig.mode_extend_train:
+        return iterator, num_train_steps
     elif mode == nerConfig.mode_dev:
+        return iterator
+    elif mode == nerConfig.mode_extend_dev:
         return iterator
     elif mode == nerConfig.mode_predict:
         return iterator, examples
@@ -388,5 +405,136 @@ def get_mention_inner_brackets(text, tag_list):
     return mentions
 
 
+def gen_random_select_list(entity_len_list, list_len):
+    select_list = []
+    select_dict = {}
+    count = 1
+    for i in range(len(entity_len_list)):
+        count *= entity_len_list[i]
+    # 生成三次，保证尽量生成全面
+    for n in range(3):
+        for i in range(count):
+            items = []
+            for j in range(list_len):
+                items.append(random.randint(0, entity_len_list[j] - 1))
+            if select_dict.get(items.__str__()) is None:
+                select_list.append(items)
+                select_dict = com_utils.dict_add(select_dict, items.__str__())
+    return select_list
+
+
+def proc_entity_select_list(entity_select_list):
+    item = [0] * len(entity_select_list[0])
+    if entity_select_list.__contains__(item):
+        return entity_select_list
+    else:
+        entity_select_list.insert(0, item)
+        return entity_select_list[0:comConfig.max_extend_mentions_num]
+
+
+def is_right_mention(original_text, choose_mention):
+    result = False
+    if original_text.find(choose_mention['mention']) > -1:
+        result = True
+    return result
+
+
+def get_mention_len(item):
+    return len(item['mention'])
+
+
+def get_mention_offset(item):
+    return int(item['offset'])
+
+
+def has_punctuation(text):
+    result = False
+    for c in text:
+        if c in comConfig.punctuation:
+            result = True
+            break
+    return result
+
+
+def deep_copy_mention_dict(mention_dict):
+    result = {}
+    result['text_id'] = mention_dict['text_id']
+    result['text'] = mention_dict['text']
+    mentions = []
+    mention_data = mention_dict['mention_data']
+    for mention in mention_data:
+        if result['text'].find(mention['mention']) == -1 and has_punctuation(mention['mention']):
+            for c in comConfig.punctuation:
+                mention['mention'] = mention['mention'].strip(c)
+        mentions.append(mention.copy())
+    result['mention_data'] = mentions
+    return result
+
+
 def get_extend_ner_train_list(kb_dict, mention_dict):
-    pass
+    result_list = [deep_copy_mention_dict(mention_dict)]
+    text_id = mention_dict['text_id']
+    original_text = mention_dict['text']
+    mention_datas = mention_dict['mention_data']
+    # delete useless mentions
+    delete_mentions = []
+    mention_datas.sort(key=get_mention_len)
+    for mention in mention_datas:
+        mention_offset = int(mention['offset'])
+        mention_len = len(mention['mention'])
+        for sub_mention in mention_datas:
+            if mention_offset != int(sub_mention['offset']) and int(sub_mention['offset']) in range(mention_offset,
+                                                                                                    mention_offset + mention_len):
+                if not is_mention_already_in_list(delete_mentions, sub_mention):
+                    delete_mentions.append(sub_mention)
+    if len(delete_mentions) > 0:
+        change_mentions = []
+        for mention in mention_datas:
+            if not is_mention_already_in_list(delete_mentions, mention):
+                change_mentions.append(mention)
+        mention_datas = change_mentions
+    mention_datas.sort(key=get_mention_offset)
+    # delete useless mentions
+    mentions_len_list = []
+    for mention in mention_datas:
+        kb_entity = kb_dict.get(mention['kb_id'])
+        if kb_entity is not None:
+            alias = kb_entity.get('alias')
+            if alias is not None:
+                mention['all_mentions'] = alias
+                mentions_len_list.append(len(alias))
+        else:
+            mention['all_mentions'] = [mention['mention']]
+            mentions_len_list.append(1)
+    entity_select_list = gen_random_select_list(mentions_len_list, len(mentions_len_list))
+    random.seed(comConfig.random_seed)
+    random.shuffle(entity_select_list)
+    entity_select_list = entity_select_list[0:comConfig.max_extend_mentions_num]
+    for select_items in entity_select_list:
+        choose_mentions = []
+        change_text = original_text
+        offset_change = 0
+        for index, item in enumerate(select_items):
+            mention = mention_datas[index]
+            mention_offset = int(mention['offset'])
+            original_mention_text = mention['mention']
+            select_mention_text = mention['all_mentions'][item]
+            original_len = len(original_mention_text)
+            select_len = len(select_mention_text)
+            len_gap = select_len - original_len
+            if mention_offset + offset_change < 0:
+                continue
+            change_text = change_text[0:mention_offset + offset_change] \
+                          + select_mention_text \
+                          + change_text[mention_offset + offset_change + original_len: len(change_text)]
+            choose_mentions.append(
+                {'kb_id': mention['kb_id'], 'mention': select_mention_text, 'offset': mention_offset + offset_change})
+            offset_change += len_gap
+        # delete useless mentions
+        change_mentions = []
+        for mention in choose_mentions:
+            if is_right_mention(change_text, mention):
+                change_mentions.append(mention)
+        choose_mentions = change_mentions
+        result_list.append({'text_id': text_id, 'text': change_text, 'mention_data': choose_mentions})
+    return result_list

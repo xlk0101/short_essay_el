@@ -51,9 +51,21 @@ class NERProcessor(DataProcessor):
         examples = self._create_example(lines, nerConfig.mode_train)
         return examples
 
+    def get_extend_train_examples(self):
+        lines = com_utils.pickle_load(fileConfig.dir_ner
+                                      + fileConfig.file_ner_extend_train_data)
+        examples = self._create_example(lines, nerConfig.mode_train)
+        return examples
+
     def get_dev_examples(self):
         lines = com_utils.pickle_load(fileConfig.dir_ner
                                       + fileConfig.file_ner_dev_data)
+        examples = self._create_example(lines, nerConfig.mode_dev)
+        return examples
+
+    def get_extend_dev_examples(self):
+        lines = com_utils.pickle_load(fileConfig.dir_ner
+                                      + fileConfig.file_ner_extend_dev_data)
         examples = self._create_example(lines, nerConfig.mode_dev)
         return examples
 

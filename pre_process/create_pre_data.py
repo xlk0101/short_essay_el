@@ -14,7 +14,7 @@ fileConfig = config.FileConfig()
 nerConfig = config.NERConfig()
 comConfig = config.ComConfig()
 fasttextConfig = config.FastTextConfig()
-if False:
+if True:
     jieba.load_userdict(fileConfig.dir_jieba + fileConfig.file_jieba_dict)
 
 
@@ -58,11 +58,11 @@ def create_kb_dict():
             raise Exception('key : {} exist'.format(subject_id))
         # text = data_utils.get_text(kb_data['data'], kb_data['subject'])
         all_alias = {}
-        subject = com_utils.cht_to_chs(kb_data['subject'])
+        subject = kb_data['subject']
         alias = kb_data['alias']
         all_alias = com_utils.dict_add(all_alias, subject)
         for alia in alias:
-            alia_text = com_utils.cht_to_chs(alia)
+            alia_text = alia
             if all_alias.get(alia_text) is not None:
                 continue
             all_alias = com_utils.dict_add(all_alias, alia_text)
@@ -113,10 +113,19 @@ def create_extend_train_file():
     for line in tqdm(train_file, desc='extend train file'):
         jstr = ujson.loads(line)
         extend_lines = data_utils.get_extend_ner_train_list(kb_dict, jstr)
-        print("test")
+        for lines in extend_lines:
+            extend_out_file.write(ujson.dumps(lines, ensure_ascii=False))
+            extend_out_file.write('\n')
+
+    # jstr = ujson.loads('{"text_id": "27755", "text": "副军级海军大校何永明担任解放军驻海南某部", "mention_data": [{"kb_id": "NIL", "mention": "副军级", "offset": "0"}, {"kb_id": "346365", "mention": "海军", "offset": "3"}, {"kb_id": "163745", "mention": "大校", "offset": "5"}, {"kb_id": "183299", "mention": "何永明", "offset": "7"}, {"kb_id": "253615", "mention": "担任", "offset": "10"}, {"kb_id": "101210", "mention": ">解放军驻海南某部", "offset": "12"}, {"kb_id": "193906", "mention": "驻", "offset": "15"}, {"kb_id": "155589", "mention": "海南", "offset": "16"}]}')
+    # extend_lines = data_utils.get_extend_ner_train_list(kb_dict, jstr)
+    # for lines in extend_lines:
+    #     extend_out_file.write(ujson.dumps(lines, ensure_ascii=False))
+    #     extend_out_file.write('\n')
+    print('success create extend train file')
 
 
-def create_ner_data(train_file_path=None):
+def create_ner_data(train_file_path=None, out_file_path=None):
     if not os.path.exists(fileConfig.dir_ner):
         os.mkdir(fileConfig.dir_ner)
     train_file = open(train_file_path, mode='r', encoding='utf-8')
@@ -125,6 +134,7 @@ def create_ner_data(train_file_path=None):
     for i, line in tqdm(enumerate(train_file), desc='create ner data'):
         jstr = ujson.loads(line)
         text_id = jstr['text_id']
+        # print(text_id)
         text_list = list(jstr['text'])
         mentions = jstr['mention_data']
         text_len = len(text_list)
@@ -149,23 +159,23 @@ def create_ner_data(train_file_path=None):
             # tag E
             tag_list[offset + mention_len - 1] = nerConfig.E_seg + tag
         data_list.append({'id': text_id, 'text': text_list, 'tag': tag_list, 'mention_data': mentions})
-    com_utils.pickle_save(data_list, fileConfig.dir_ner + fileConfig.file_ner_data)
+    com_utils.pickle_save(data_list, out_file_path)
     print("success create ner data")
 
 
-def split_train_data():
-    data_list = com_utils.pickle_load(fileConfig.dir_ner + fileConfig.file_ner_data)
+def split_train_data(train_file_path=None, out_train_file=None, out_dev_file=None):
+    data_list = com_utils.pickle_load(train_file_path)
     data_len = len(data_list)
     # train_size = int(data_len * comConfig.train_ratio)
-    train_size = 80000
+    test_size = 10000
     random.seed(comConfig.random_seed)
     random.shuffle(data_list)
 
     # train_data = data_list[:train_size]
-    train_data = data_list
-    dev_data = data_list[train_size:]
-    com_utils.pickle_save(train_data, fileConfig.dir_ner + fileConfig.file_ner_train_data)
-    com_utils.pickle_save(dev_data, fileConfig.dir_ner + fileConfig.file_ner_dev_data)
+    train_data = data_list[:data_len - test_size]
+    dev_data = data_list[data_len - test_size:data_len]
+    com_utils.pickle_save(train_data, out_train_file)
+    com_utils.pickle_save(dev_data, out_dev_file)
     print("success split data set")
 
 
@@ -344,7 +354,7 @@ def create_fasttext_sup_train_data(index, train_data_file, kb_dict_file, kb_alia
     print("create {} sup train data".format(index))
     kb_alias_df = pd.read_csv(kb_alia_file)
     stopwords = data_utils.get_stopword_list(stopword_file)
-    train_datas = open(train_data_file, 'r', encoding='utf-8')
+    train_datas = open(train_data_file, 'r', encoding='utf-8').readlines()
     kb_dict = com_utils.pickle_load(kb_dict_file)
     train_out_file = open(out_file, 'w', encoding='utf-8')
     for line in tqdm(train_datas, desc='deal {} train file'.format(index)):
@@ -362,19 +372,30 @@ def create_fasttext_sup_train_data(index, train_data_file, kb_dict_file, kb_alia
                                                                  fasttextConfig.label_true)
                 train_out_file.write(out_str)
             # false values
-            alia_id = None
+            alia_ids = []
+            alia_count = 0
             alias_df = kb_alias_df[kb_alias_df['subject'] == com_utils.cht_to_chs(mention_text)]
             for _, item in alias_df.iterrows():
                 a_id = str(item['subject_id'])
                 if a_id != mention_id:
-                    alia_id = a_id
-                    break
-            if alia_id is not None:
-                alia_entity = kb_dict.get(alia_id)
-                if alia_entity is not None:
-                    out_str = com_utils.get_entity_mention_pair_text(kb_entity['text'], neighbor_text, stopwords,
-                                                                     fasttextConfig.label_false)
-                    train_out_file.write(out_str)
+                    alia_ids.append(a_id)
+                    alia_count += 1
+                    if alia_count == 3:
+                        break
+            if len(alia_ids) > 0:
+                for alia_id in alia_ids:
+                    alia_entity = kb_dict.get(alia_id)
+                    if alia_entity is not None:
+                        out_str = com_utils.get_entity_mention_pair_text(alia_entity['text'], neighbor_text, stopwords,
+                                                                         fasttextConfig.label_false)
+                        train_out_file.write(out_str)
+    # 清理资源
+    train_out_file.close()
+    train_datas = None
+    train_out_file = None
+    kb_alias_df = None
+    stopwords = None
+    kb_dict = None
 
 
 def test(index):
@@ -382,19 +403,21 @@ def test(index):
 
 
 def create_fasttext_sup_data_multi():
+    print('start create fasttext sup data...')
     if not os.path.exists(fileConfig.dir_tmp):
         os.mkdir(fileConfig.dir_tmp)
     split_num = 8
     pool = multiprocessing.Pool(processes=split_num)
-    train_data = open(fileConfig.dir_data + fileConfig.file_train_data, 'r', encoding='utf-8').readlines()
+    train_data = open(fileConfig.dir_data + fileConfig.file_extend_train_data, 'r', encoding='utf-8').readlines()
     if not os.path.exists(fileConfig.dir_tmp + fileConfig.file_train_data_split.format(split_num)):
-        train_split_len = len(train_data) / split_num
+        train_split_len = int(len(train_data) / split_num)
         print("create train tmp file")
         for i in range(1, split_num + 1):
             train_data_split_file = open(fileConfig.dir_tmp + fileConfig.file_train_data_split.format(i), 'w',
                                          encoding='utf-8')
             train_datas = train_data[int((i - 1) * train_split_len):int(i * train_split_len)]
             train_data_split_file.writelines(train_datas)
+        train_data = None
     print('start create fasttext train data')
     if not os.path.exists(fileConfig.dir_tmp + fileConfig.file_fasttext_sup_train_split.format(split_num)):
         for index in range(1, split_num + 1):
@@ -407,23 +430,28 @@ def create_fasttext_sup_data_multi():
         pool.close()
         pool.join()  # behind close() or terminate()
         print("Sub-process(es) done.")
+    all_datas = []
     if not os.path.exists(fileConfig.dir_fasttext + fileConfig.file_fasttext_sup_train_data):
         print("merge split train file")
-        all_datas = []
         train_out_file = open(fileConfig.dir_fasttext + fileConfig.file_fasttext_sup_train_data, 'w', encoding='utf-8')
         for index in range(1, split_num + 1):
             split_file = open(fileConfig.dir_tmp + fileConfig.file_fasttext_sup_train_split.format(index), 'r',
                               encoding='utf-8')
             split_datas = split_file.readlines()
             all_datas += split_datas
-            train_out_file.writelines(split_datas)
+        train_out_file.writelines(all_datas[:len(all_datas) - 20000])
+        train_out_file.close()
+        train_out_file = None
     if not os.path.exists(fileConfig.dir_fasttext + fileConfig.file_fasttext_sup_test_data):
         print("create test file...")
         test_out_file = open(fileConfig.dir_fasttext + fileConfig.file_fasttext_sup_test_data, 'w', encoding='utf-8')
+        test_datas = all_datas[len(all_datas) - 20000:]
         random.seed(comConfig.random_seed)
-        random.shuffle(all_datas)
-        test_out_lines = all_datas[0:20000]
+        random.shuffle(test_datas)
+        test_out_lines = test_datas
         test_out_file.writelines(test_out_lines)
+        test_out_file.close()
+        test_out_file = None
     print("success create fasttext sup train and test data")
 
 
@@ -557,12 +585,32 @@ if __name__ == '__main__':
         create_kb_dict()
     if not os.path.exists(fileConfig.dir_data + fileConfig.file_vocab_data):
         create_vocab()
-    create_extend_train_file()
-    if not os.path.exists(fileConfig.dir_ner + fileConfig.file_ner_data):
-        create_ner_data()
+    if not os.path.exists(fileConfig.dir_data + fileConfig.file_extend_train_data):
+        create_extend_train_file()
+    if not os.path.exists(fileConfig.dir_ner + fileConfig.file_ner_data) or not os.path.exists(
+            fileConfig.dir_ner + fileConfig.file_extend_ner_data):
+        if comConfig.create_ner_mode == comConfig.mode_ner_normal:
+            print("start create normal ner data")
+            create_ner_data(fileConfig.dir_data + fileConfig.file_train_data,
+                            fileConfig.dir_ner + fileConfig.file_ner_data)
+        elif comConfig.create_ner_mode == comConfig.mode_ner_extend:
+            print("start create extend ner data")
+            create_ner_data(fileConfig.dir_data + fileConfig.file_extend_train_data,
+                            fileConfig.dir_ner + fileConfig.file_extend_ner_data)
     if not os.path.exists(fileConfig.dir_ner + fileConfig.file_ner_train_data) or not os.path.exists(
-            fileConfig.dir_ner + fileConfig.file_ner_dev_data):
-        split_train_data()
+            fileConfig.dir_ner + fileConfig.file_ner_dev_data) or not os.path.exists(
+        fileConfig.dir_ner + fileConfig.file_ner_extend_train_data) or not os.path.exists(
+        fileConfig.dir_ner + fileConfig.file_ner_extend_dev_data):
+        if comConfig.create_ner_mode == comConfig.mode_ner_normal:
+            print("start split normal ner data")
+            split_train_data(fileConfig.dir_ner + fileConfig.file_ner_data,
+                             fileConfig.dir_ner + fileConfig.file_ner_train_data,
+                             fileConfig.dir_ner + fileConfig.file_ner_dev_data)
+        elif comConfig.create_ner_mode == comConfig.mode_ner_extend:
+            print("start split extend ner data")
+            split_train_data(fileConfig.dir_ner + fileConfig.file_extend_ner_data,
+                             fileConfig.dir_ner + fileConfig.file_ner_extend_train_data,
+                             fileConfig.dir_ner + fileConfig.file_ner_extend_dev_data)
     if not os.path.exists(fileConfig.dir_ner + fileConfig.file_ner_predict_data):
         create_predict_ner_data()
     if not os.path.exists(fileConfig.dir_nel + fileConfig.file_nel_entity_link_train_data):
