@@ -43,7 +43,7 @@ def fit_eval(model, training_iter, eval_iter, num_epoch, pbar, num_train_steps, 
         optimizer = BertAdam(optimizer_grouped_parameters,
                              lr=nerConfig.learning_rate,
                              warmup=nerConfig.warmup_proportion,
-                             t_total=t_total)
+                             t_total=t_total, weight_decay=0.1)
     # ---------------------模型初始化----------------------
     if nerConfig.fp16:
         model.half()

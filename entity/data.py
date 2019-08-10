@@ -74,6 +74,11 @@ class NERProcessor(DataProcessor):
         examples = self._create_example(lines, nerConfig.mode_predict)
         return examples
 
+    def get_eval_examples(self):
+        lines = com_utils.pickle_load(fileConfig.dir_ner + fileConfig.file_ner_eval_data)
+        examples = self._create_example(lines, nerConfig.mode_predict)
+        return examples
+
     def get_labels(self):
         return nerConfig.labels
 

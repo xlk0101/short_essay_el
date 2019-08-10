@@ -6,13 +6,21 @@ class ComConfig(object):
         self.random_seed = 515
         self.train_ratio = 0.9
         self.max_extend_mentions_num = 30
+        self.max_jieba_cut_len = 10
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.punctuation = r"""!"#$%&'()*+,./:;<=>?@[\]^`{|}~《》。·，！？‘’“”"""
+        self.punctuation = r"""!"#$%&'()*+,./:;<=>?@[\]^`{|}~《》。·，！？‘’“”【】"""
         self.re_find_brackets = r'[{}](.*?)[{}]'
-        self.brackets_list = ['<>', '()', '《》', '\'\'', '\"\"', '{}', '[]']
+        self.brackets_list = ['<>', '()', '《》', '\'\'', '\"\"', '{}', '[]', '【】']
         self.mode_ner_normal = 'normal'
         self.mode_ner_extend = 'extend'
         self.create_ner_mode = self.mode_ner_extend
+        self.result_error_type_miss = 1
+        self.result_error_type_gen_more = 2
+        self.result_error_type_original_more = 3
+        self.jieba_client = 0
+        self.pkuseg_client = 1
+        self.use_dict = True
+        self.cut_client = self.jieba_client
 
 
 class FileConfig(object):
@@ -39,11 +47,17 @@ class FileConfig(object):
         # file params
         self.file_kb_data = 'kb_data'
         self.file_train_data = 'train.json'
+        self.file_train_pkl = 'train.pkl'
+        self.file_test_pkl = 'test.pkl'
         self.file_extend_train_data = 'extend_train.json'
+        self.file_extend_test_data = 'extend_test.json'
         self.file_train_data_split = 'train_data_{}_split.txt'
+        self.file_test_data_split = 'test_data_{}_split.txt'
         self.file_dev_data = 'develop.json'
+        self.file_eval_data = 'eval722.json'
         self.file_stopword = 'stopword.txt'
         self.file_jieba_dict = 'jieba_dict.txt'
+        self.file_jieba_kb = 'jieba_kb.pkl'
         self.file_kb_dict = 'kb_dict.pkl'
         self.file_kb_pandas_csv = 'pandas_kb.csv'
         self.file_kb_pandas_split = 'pandas_{}_kb.csv'
@@ -52,19 +66,25 @@ class FileConfig(object):
         self.file_vocab_data = 'vocab_data.txt'
         self.file_ner_data = 'ner_data.pkl'
         self.file_extend_ner_data = 'extend_ner_data.pkl'
+        self.file_extend_ner_dev_data = 'extend_ner_dev_data.pkl'
         self.file_ner_train_data = 'ner_train_data.pkl'
         self.file_ner_extend_train_data = 'ner_extend_train_data.pkl'
         self.file_ner_dev_data = 'ner_dev_data.pkl'
         self.file_ner_extend_dev_data = 'ner_extend_dev_data.pkl'
         self.file_ner_predict_data = 'ner_predict_data.pkl'
+        self.file_ner_eval_data = 'ner_eval_data.pkl'
         self.file_ner_test_mention_data = 'ner_test_mention_data.pkl'
+        self.file_ner_eval_mention_data = 'ner_eval_mention_data.pkl'
         self.file_ner_dev_mention_data = 'ner_dev_mention_data.pkl'
         self.file_ner_dev_cands_data = 'ner_dev_cands_data.json'
         self.file_ner_test_cands_data = 'ner_test_cands_data.json'
+        self.file_ner_eval_cands_data = 'ner_eval_cands_data.json'
         self.file_ner_dev_mention_split = 'ner_dev_mention_split_{}.pkl'
         self.file_ner_test_mention_split = 'ner_test_mention_split_{}.pkl'
+        self.file_ner_eval_mention_split = 'ner_eval_mention_split_{}.pkl'
         self.file_ner_dev_cands_split = 'ner_dev_cands_split_{}.pkl'
         self.file_ner_test_cands_split = 'ner_test_cands_split_{}.pkl'
+        self.file_ner_eval_cands_split = 'ner_eval_cands_split_{}.pkl'
         self.file_bert_vocab = 'vocab.txt'
         self.file_analysis_vocab = 'analysis_vocab.txt'
         self.file_analysis_unfind = 'analysis_unfind.txt'
@@ -72,6 +92,7 @@ class FileConfig(object):
         self.file_ner_model = 'ner_model.bin'
         self.file_ner_predict_tag = 'ner_predict_tag.pkl'
         self.file_ner_test_predict_tag = 'ner_test_predict_tag.pkl'
+        self.file_ner_eval_predict_tag = 'ner_eval_predict_tag.pkl'
         self.file_nel_train_data = 'nel_train_data.pkl'
         self.file_nel_entity_link_train_data = 'nel_entity_link_train_data.pkl'
         self.file_nel_mention_context_vocab = 'nel_mention_context_vocab.txt'
@@ -79,13 +100,29 @@ class FileConfig(object):
         self.file_nel_entity_vocab = 'nel_entity_vocab.txt'
         self.file_tfidf_save_data = 'tfidf_save_data.pkl'
         self.file_fasttext_unsup_train_data = 'fasttext_unsup_train_data.txt'
-        self.file_fasttext_sup_train_data = 'fasttext_sup_train_data.txt'
-        self.file_fasttext_sup_test_data = 'fasttext_sup_test_data.txt'
-        self.file_fasttext_sup_train_split = 'fasttext_sup_train_{}_split.txt'
+        self.file_fasttext_sup_train_word_data = 'fasttext_sup_train_data.txt'
+        self.file_fasttext_sup_train_char_data = 'fasttext_sup_train_char.txt'
+        self.file_fasttext_sup_test_word_data = 'fasttext_sup_test_data.txt'
+        self.file_fasttext_sup_test_char_data = 'fasttext_sup_test_char.txt'
+        self.file_fasttext_sup_train_word_split = 'fasttext_sup_train_{}_split.txt'
+        self.file_fasttext_sup_train_char_split = 'fasttext_sup_train_char_{}_split.txt'
+        self.file_fasttext_sup_test_word_split = 'fasttext_sup_test_{}_split.txt'
+        self.file_fasttext_sup_test_char_split = 'fasttext_sup_test_char_{}_split.txt'
         self.file_fasttext_model = 'fasttext_{}_model.bin'
-        self.file_fasttext_sup_model = 'fasttext_sup_model.bin'
+        self.file_fasttext_quantize_model = 'fasttext_{}_quantize.ftz'
+        self.file_fasttext_sup_word_model = 'fasttext_sup_model.bin'
+        self.file_fasttext_sup_char_model = 'fasttext_sup_char_model.bin'
+        self.file_fasttext_sup_char_model = 'fasttext_sup_char_model.bin'
+        self.file_fasttext_gensim_unsup_model = 'gensim_unsup_model.bin'
+        self.file_gensim_tencent_unsup_model = 'gensim_tencent_unsup_model.bin'
         self.file_result_fasttext_predict = 'result_fasttext_predict.txt'
+        self.file_result_eval_data = 'result_eval.txt'
         self.file_result_fasttext_test = 'result_fasttext_test.txt'
+        self.file_result_fasttext_test_analysis = 'result_analysis_fasttest_test.txt'
+        self.file_analysis_gen_more = 'gen_more.txt'
+        self.file_ner_test_result_analysis = 'ner_test_result_analysis'
+        self.file_tencent_word_embedding = 'Tencent_AILab_ChineseEmbedding.txt'
+        self.file_cc_pretrained_word_embedding = 'cc.zh.300.vec'
 
 
 class NERConfig(object):
@@ -106,6 +143,7 @@ class NERConfig(object):
         self.mode_extend_dev = 'extend_dev'
         self.mode_predict = 'predict'
         self.mode_test = 'test'
+        self.mode_eval = 'eval'
         self.ner_task_name = 'ner'
         # self.labels = ["B_KB", "I_KB", "E_KB", "B_NIL", "I_NIL", "E_NIL", "O"]
         self.labels = ["B_KB", "I_KB", "E_KB", "O"]
@@ -311,12 +349,13 @@ class NERConfig(object):
             'HistoricalPerson': 'Human'
         }
         # NER model
-        self.max_seq_length = 51
-        self.train_batch_size = 48
-        self.eval_batch_size = 48
+        self.max_seq_length = 65
+        self.train_batch_size = 32
+        self.eval_batch_size = 32
         self.learning_rate = 5e-5
         self.num_train_epochs = 3
         self.warmup_proportion = 0.1
+        self.dropout_ratio = 0.5
         self.gradient_accumulation_steps = 1
         self.fp16 = False
         self.loss_scale = 0.
@@ -344,8 +383,11 @@ class FastTextConfig(object):
     def __init__(self):
         self.model_skipgram = 'skipgram'
         self.model_cbow = 'cbow'
+        self.choose_model = self.model_skipgram
         self.label_true = '__label__true'
         self.label_false = '__label__false'
+        self.create_data_word = 0
+        self.create_data_char = 1
         self.max_alias_num = 30
         self.min_entity_similarity_threshold = 0.4
         self.choose_entity_similarity_threshold = 0.7

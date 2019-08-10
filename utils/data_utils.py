@@ -56,6 +56,9 @@ def create_ner_batch_iter(mode):
     elif mode == nerConfig.mode_test:
         examples = processor.get_dev_examples()
         batch_size = nerConfig.eval_batch_size
+    elif mode == nerConfig.mode_eval:
+        examples = processor.get_eval_examples()
+        batch_size = nerConfig.eval_batch_size
     else:
         raise ValueError("Invalid mode %s" % mode)
 
@@ -86,6 +89,8 @@ def create_ner_batch_iter(mode):
         sampler = SequentialSampler(data)
     elif mode == nerConfig.mode_test:
         sampler = SequentialSampler(data)
+    elif mode == nerConfig.mode_eval:
+        sampler = SequentialSampler(data)
     else:
         raise ValueError("Invalid mode %s" % mode)
     # 迭代器
@@ -101,6 +106,8 @@ def create_ner_batch_iter(mode):
     elif mode == nerConfig.mode_predict:
         return iterator, examples
     elif mode == nerConfig.mode_test:
+        return iterator, examples
+    elif mode == nerConfig.mode_eval:
         return iterator, examples
     else:
         raise ValueError("Invalid mode %s" % mode)
@@ -118,6 +125,8 @@ def deal_ner_predict_data(predict_list, data_list, out_file):
     datas = []
     for data, label in zip(data_list, label_list):
         text_list = data.text_a
+        if len(text_list) != len(label):
+            print('text len:{} labels len:{}'.format(len(text_list), len(label)))
         assert len(text_list) == len(label)
         labels = []
         for item in label:
@@ -171,7 +180,6 @@ def reorder_lstm_states(states, order):
     assert len(states) == 2
     assert states[0].size() == states[1].size()
     assert len(order) == states[0].size()[1]
-
     order = torch.LongTensor(order).to(comConfig.device)
     sorted_states = (states[0].index_select(index=order, dim=1), states[1].index_select(index=order, dim=1))
     return sorted_states
@@ -327,6 +335,20 @@ def get_all_text(subject, datas):
     return result_str[0:len(result_str) - 1]
 
 
+def get_kb_text(kb_str, cut_client, stopwords):
+    kb_datas = kb_str['data']
+    result = kb_str['subject'] + ' '
+    for kb_data in kb_datas:
+        result += kb_data['predicate'] + ' '
+        cut_texts = cut_client.cut_text(kb_data['object'])
+        for text in cut_texts:
+            if stopwords.get(text) is None and text != ' ':
+                result += com_utils.cht_to_chs(text.strip('\n'))
+                if not text.isdigit():
+                    result += ' '
+    return result[0:len(result) - 1]
+
+
 def get_kb_text_list(kb_str, is_all=False):
     result_texts = []
     subject_list = set()
@@ -353,12 +375,17 @@ def get_kb_text_list(kb_str, is_all=False):
     return result_texts
 
 
-def get_jieba_split_words(text, jieba, stopwords):
-    texts = jieba.lcut(text)
+def get_jieba_split_words(text, cut_client, stopwords):
+    texts = cut_client.cut_text(text)
     result_list = []
+    concat_text = ""
     for text in texts:
-        if stopwords.get(text) is None:
-            result_list.append(text)
+        if stopwords.get(text) is None and text != ' ':
+            if not text.isdigit():
+                result_list.append(concat_text + text)
+                concat_text = ""
+            else:
+                concat_text += text
     return result_list
 
 
@@ -366,7 +393,7 @@ def strip_punctuation(text):
     result = text
     for c in string.punctuation:
         result = result.strip(c)
-        result = result.replace(c, '_')
+        # result = result.replace(c, '_')
     return result
 
 
@@ -456,6 +483,13 @@ def has_punctuation(text):
     return result
 
 
+def is_punctuation(text):
+    result = False
+    if text in comConfig.punctuation:
+        result = True
+    return result
+
+
 def deep_copy_mention_dict(mention_dict):
     result = {}
     result['text_id'] = mention_dict['text_id']
@@ -538,3 +572,16 @@ def get_extend_ner_train_list(kb_dict, mention_dict):
         choose_mentions = change_mentions
         result_list.append({'text_id': text_id, 'text': change_text, 'mention_data': choose_mentions})
     return result_list
+
+
+def pandas_query(pd_df, col_name, q_text):
+    return pd_df[pd_df[col_name].str.lower() == q_text]
+
+
+def pandas_query_vague(pd_df, col_name, q_text):
+    result = None
+    try:
+        result = pd_df[pd_df[col_name].str.contains(q_text, na=False)]
+    except BaseException:
+        result = pd_df[pd_df[col_name].str.lower() == q_text]
+    return result

@@ -101,7 +101,7 @@ class CRF(nn.Module):
             total_score = self.all_possible_path_score(features)
             cost = total_score - real_score
             loss = loss + cost
-            return loss / num_chars
+        return loss / num_chars
 
     def viterbi(self, features):
         time_steps = features.size(0)

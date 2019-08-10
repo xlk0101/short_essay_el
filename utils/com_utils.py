@@ -3,12 +3,12 @@ import pickle
 import config
 import time
 import torch
-import jieba_fast as jieba
 from datetime import timedelta
 from utils.zh_wiki import zh2Hans
 from utils.langconv import *
 from model.ner_bert_crf import Ner_Bert_Crf
 
+comConfig = config.ComConfig()
 fileConfig = config.FileConfig()
 nerConfig = config.NERConfig()
 fasttextConfig = config.FastTextConfig()
@@ -134,20 +134,44 @@ def dict_add(dic, dic_str):
     return dic
 
 
-def get_entity_mention_pair_text(kb_text, neighbor_text, stopwords, label=None):
+def get_str_char(text):
+    result = ''
+    if text is None:
+        return result
+    for char in text:
+        result += char + ' '
+    return result[0:len(result) - 1]
+
+
+def get_entity_mention_pair_text(kb_text, neighbor_text, stopwords, cut_client, label=None,
+                                 mode=fasttextConfig.create_data_word):
     out_str = ''
-    neighbor_text_cut = jieba.lcut(neighbor_text)
-    for text in neighbor_text_cut:
-        if text not in stopwords:
-            out_str += cht_to_chs(text) + ' '
-    kb_text_cut = jieba.lcut(kb_text)
-    for text in kb_text_cut:
-        if text not in stopwords:
-            out_str += cht_to_chs(text) + ' '
-    if label is not None:
-        out_str = label + ' ' + out_str[0:len(out_str) - 1] + '\n'
-    else:
-        out_str = out_str[0:len(out_str) - 1] + '\n'
+    if mode == fasttextConfig.create_data_word:
+        neighbor_text_cut = cut_client.cut_text(neighbor_text)
+        for text in neighbor_text_cut:
+            if text not in stopwords and text != ' ':
+            # if text != ' ':
+                text_str = text.strip(' ')
+                out_str += text_str
+                if not text_str.isdigit():
+                    out_str += ' '
+        kb_text_cut = cut_client.cut_text(kb_text)
+        for text in kb_text_cut:
+            if text not in stopwords and text != ' ':
+            # if text != ' ':
+                text_str = text.strip(' ')
+                out_str += text_str
+                if not text_str.isdigit():
+                    out_str += ' '
+        if label is not None:
+            out_str = label + ' ' + out_str[0:len(out_str) - 1] + '\n'
+        else:
+            out_str = out_str[0:len(out_str) - 1] + '\n'
+    elif mode == fasttextConfig.create_data_char:
+        if label is not None:
+            out_str = label + ' ' + get_str_char(neighbor_text) + ' ' + get_str_char(kb_text) + '\n'
+        else:
+            out_str = get_str_char(neighbor_text) + ' ' + get_str_char(kb_text) + '\n'
     return out_str
 
 
@@ -163,3 +187,11 @@ def get_neighbor_sentence(sentence, mention_text):
             elif i + text_len > len(sentence) - 9:
                 neighbor_sentence = sentence[-20:]
     return neighbor_sentence
+
+
+def complete_brankets(text):
+    result = text
+    for branket in comConfig.brackets_list:
+        if text.find(branket[0]) > -1 and text.find(branket[1]) == -1:
+            result = text + branket[1]
+    return result

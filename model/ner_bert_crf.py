@@ -15,7 +15,7 @@ class Ner_Bert_Crf(BertPreTrainedModel):
         # bilstm
         # self.bilstm = nn.LSTM(model_config.hidden_size, model_config.hidden_size, batch_first=True,
         #                       bidirectional=True)
-        self.dropout = nn.Dropout(model_config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(model_config.hidden_size, num_tag)
         self.apply(self.init_bert_weights)
         self.crf = CRF(num_tag)
@@ -30,7 +30,8 @@ class Ner_Bert_Crf(BertPreTrainedModel):
         # # rnn_out:[B, L, hidden_size*2]
         # rnn_out, _ = pad_packed_sequence(rnn_out, batch_first=True)
         # bilstm
-        output = self.classifier(bert_encode)
+        out = self.dropout(bert_encode)  # add dropout
+        output = self.classifier(out)
         # output = self.classifier(rnn_out)
         return output
 

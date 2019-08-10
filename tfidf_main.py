@@ -7,10 +7,9 @@ import os
 import config
 import ujson
 import random
-import jieba_fast as jieba
 import numpy as np
 from tqdm import tqdm
-from utils import com_utils
+from utils import com_utils, text_cut
 from sklearn.metrics import f1_score
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -19,9 +18,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 fileConfig = config.FileConfig()
 tfidfConfig = config.TfIdfConfig()
 comConfig = config.ComConfig()
-
-if tfidfConfig.is_use_local_dict:
-    jieba.load_userdict(fileConfig.dir_jieba + fileConfig.file_jieba_dict)
+cut_client = text_cut.get_client()
 
 
 def train():
@@ -30,7 +27,7 @@ def train():
     train_sentence = []
     print("prepare train data")
     for key, data in tqdm(datas.items(), desc='init train data'):
-        train_sentence.append(' '.join(jieba.cut(data['text'])))
+        train_sentence.append(' '.join(cut_client.cut_text(data['text'])))
     print("start train tfidf model")
     X = vectorizer.fit_transform(train_sentence)
     print("save model and keyword")
@@ -44,7 +41,7 @@ def train():
 # 获取包含关键词的句子中关键词所属的entity_id
 def get_entityid(sentence, vectorizer, X):
     id_start = tfidfConfig.start_index
-    a_list = [' '.join(jieba.cut(sentence))]
+    a_list = [' '.join(cut_client.cut_text()(sentence))]
     res = cosine_similarity(vectorizer.transform(a_list), X)[0]
     top_idx = np.argsort(res)[-1]
     return id_start + top_idx
@@ -88,7 +85,7 @@ def test():
     y_pred = []
     y_true = []
     for mention in tqdm(mentions, desc='find mention'):
-    # for mention in mentions:
+        # for mention in mentions:
         y_true.append(int(mention['kb_id']))
         text = mention['mention']
         text_len = len(text)

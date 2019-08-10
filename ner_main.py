@@ -29,7 +29,7 @@ def predict():
     dev_iter, data_list = data_utils.create_ner_batch_iter(nerConfig.mode_predict)
     model = com_utils.load_model(fileConfig.dir_ner_checkpoint, num_tag=len(nerConfig.labels))
     predict_list = ner_evaluate.predict(model, dev_iter)
-    data_utils.deal_ner_predict_data(predict_list, data_list,fileConfig.dir_ner + fileConfig.file_ner_predict_tag)
+    data_utils.deal_ner_predict_data(predict_list, data_list, fileConfig.dir_ner + fileConfig.file_ner_predict_tag)
     print("success predict dev data")
 
 
@@ -41,8 +41,16 @@ def test():
     print("success predict test data")
 
 
+def eval_data():
+    eval_iter, data_list = data_utils.create_ner_batch_iter(nerConfig.mode_eval)
+    model = com_utils.load_model(fileConfig.dir_ner_checkpoint, num_tag=len(nerConfig.labels))
+    predict_list = ner_evaluate.predict(model, eval_iter)
+    data_utils.deal_ner_predict_data(predict_list, data_list, fileConfig.dir_ner + fileConfig.file_ner_eval_predict_tag)
+    print("success predict eval data")
+
+
 if __name__ == '__main__':
-    if len(sys.argv) == 1 or not sys.argv[1] in ['train', 'test', 'predict']:
+    if len(sys.argv) == 1 or not sys.argv[1] in ['train', 'test', 'predict', 'eval']:
         print("should input param [train/test/predict]")
     if sys.argv[1] == 'train':
         train()
@@ -50,5 +58,7 @@ if __name__ == '__main__':
         predict()
     elif sys.argv[1] == 'test':
         test()
+    elif sys.argv[1] == 'eval':
+        eval_data()
     else:
         pass
